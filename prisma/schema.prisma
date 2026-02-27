@@ -25,6 +25,7 @@ model Tenant {
 
   users         User[]
   invitations   Invitation[]
+  positions     Position[]
 
   @@map("tenants")
 }
@@ -37,16 +38,19 @@ model User {
   firstName      String    @map("first_name")
   lastName       String    @map("last_name")
   role           Role      @default(MEMBER)
+  positionId     String?   @map("position_id") @db.Uuid
   isActive       Boolean   @default(true) @map("is_active")
   lastLoginAt    DateTime? @map("last_login_at")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  position       Position? @relation(fields: [positionId], references: [id], onDelete: SetNull)
   refreshTokens  RefreshToken[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
+  @@index([positionId])
   @@map("users")
 }
 
@@ -77,6 +81,27 @@ model Invitation {
 
   @@index([tenantId])
   @@map("invitations")
+}
+
+// ============================================================
+// ERP: Positions (Cargos modulares por tenant)
+// ============================================================
+
+model Position {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("positions")
 }
 
 // ============================================================

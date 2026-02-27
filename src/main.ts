@@ -50,7 +50,6 @@ async function bootstrap() {
       .setDescription('ERP SaaS Multi-Tenant API')
       .setVersion('0.1.0')
       .addBearerAuth()
-      .addServer('/api/v1')
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);

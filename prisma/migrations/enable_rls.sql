@@ -24,6 +24,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO app_user;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE positions ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- Tenant isolation policies
@@ -50,4 +51,11 @@ CREATE POLICY tenant_isolation_policy ON invitations
   USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
 
 CREATE POLICY bypass_rls_policy ON invitations
+  USING (current_setting('app.bypass_rls', TRUE)::text = 'on');
+
+-- Positions
+CREATE POLICY tenant_isolation_policy ON positions
+  USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+
+CREATE POLICY bypass_rls_policy ON positions
   USING (current_setting('app.bypass_rls', TRUE)::text = 'on');

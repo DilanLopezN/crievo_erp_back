@@ -9,6 +9,7 @@ import { PrismaModule } from '@/modules/prisma';
 import { AuthModule, AuthGuard } from '@/modules/auth';
 import { TenantModule } from '@/modules/tenant';
 import { UserModule } from '@/modules/user';
+import { PositionModule } from '@/modules/position';
 import { HealthModule } from '@/modules/health/health.module';
 
 @Module({
@@ -46,6 +47,7 @@ import { HealthModule } from '@/modules/health/health.module';
 
     // Feature modules
     UserModule,
+    PositionModule,
     HealthModule,
   ],
   providers: [
