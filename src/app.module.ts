@@ -11,6 +11,7 @@ import { TenantModule } from '@/modules/tenant';
 import { UserModule } from '@/modules/user';
 import { HealthModule } from '@/modules/health/health.module';
 import { HrModule } from '@/modules/hr/hr.module';
+import { FinancialModule } from '@/modules/financial/financial.module';
 
 @Module({
   imports: [
@@ -51,6 +52,9 @@ import { HrModule } from '@/modules/hr/hr.module';
 
     // HR Module
     HrModule,
+
+    // Financial Module
+    FinancialModule,
   ],
   providers: [
     // AuthGuard global - todas as rotas protegidas por padrão
