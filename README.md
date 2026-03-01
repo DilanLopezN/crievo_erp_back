@@ -1,11 +1,21 @@
-# ERP SaaS - Multi-Tenant Backend
+# Crievo ERP SaaS - Multi-Tenant Backend
 
 ## Stack
-- **Runtime:** Node.js + NestJS + Fastify
+- **Runtime:** Node.js + NestJS 11 + Fastify
 - **ORM:** Prisma 6
 - **DB:** PostgreSQL 17 com Row Level Security (RLS)
 - **Auth:** JWT (access + refresh tokens)
-- **Multi-Tenant:** Shared DB + RLS + Prisma Client Extensions + nestjs-cls
+- **Multi-Tenant:** Shared DB + Multi-Schema + RLS + Prisma Client Extensions + nestjs-cls
+
+## Schemas do Banco de Dados
+
+O banco de dados esta organizado em **3 schemas semanticos**:
+
+| Schema | Dominio | Tabelas |
+|--------|---------|---------|
+| `core` | Multi-tenant e Autenticacao | Tenant, User, RefreshToken, Invitation |
+| `rh` | Recursos Humanos | Department, Position, WorkSchedule, Employee, TimeRecord, Leave |
+| `financeiro` | Gestao Financeira | FinancialCategory, CostCenter, BankAccount, AccountPayable, AccountReceivable, FinancialTransaction, BankStatement |
 
 ## Arquitetura Multi-Tenant
 
@@ -19,11 +29,11 @@ Request → AuthGuard (JWT) → TenantGuard (seta tenantId no CLS)
                         PostgreSQL RLS filtra automaticamente
 ```
 
-**Abordagem:** Shared database, shared schema com PostgreSQL RLS.
+**Abordagem:** Shared database, multi-schema com PostgreSQL RLS.
 
 - **Sem request-scoped providers** — usa `nestjs-cls` (AsyncLocalStorage) para propagar o tenant context sem degradar performance
-- **Dupla proteção** — mesmo que o dev esqueça de filtrar por tenant, o RLS no PostgreSQL garante isolamento
-- **`prisma.tenantClient()`** — para queries tenant-scoped (automático)
+- **Dupla protecao** — mesmo que o dev esqueca de filtrar por tenant, o RLS no PostgreSQL garante isolamento
+- **`prisma.tenantClient()`** — para queries tenant-scoped (automatico)
 - **`prisma.bypassClient()`** — para queries system-level (login, lookup de tenant, admin)
 
 ## Setup
@@ -32,7 +42,7 @@ Request → AuthGuard (JWT) → TenantGuard (seta tenantId no CLS)
 # 1. Subir PostgreSQL
 docker compose up -d
 
-# 2. Instalar dependências
+# 2. Instalar dependencias
 npm install
 
 # 3. Gerar Prisma Client
@@ -41,8 +51,7 @@ npx prisma generate
 # 4. Rodar migrations
 npx prisma migrate dev --name init
 
-# 5. Aplicar RLS (após migration inicial)
-# Conecte no banco e execute:
+# 5. Aplicar RLS (apos migration inicial)
 psql $DATABASE_URL -f prisma/migrations/enable_rls.sql
 
 # 6. Seed
@@ -52,22 +61,17 @@ npm run prisma:seed
 npm run start:dev
 ```
 
-## API Endpoints
+## Documentacao
 
-| Método | Rota | Auth | Descrição |
-|--------|------|------|-----------|
-| POST | /api/v1/auth/register | ❌ | Cria tenant + owner |
-| POST | /api/v1/auth/login | ❌ | Login com tenant context |
-| POST | /api/v1/tenants | ❌ | Cria tenant |
-| GET | /api/v1/tenants/:slug | ❌ | Busca tenant por slug |
-| GET | /api/v1/users | ✅ | Lista users do tenant |
-| GET | /api/v1/users/:id | ✅ | Busca user por ID |
-| PATCH | /api/v1/users/:id/deactivate | ✅ OWNER/ADMIN | Desativa user |
-| GET | /api/v1/health | ❌ | Health check |
+| Documento | Descricao |
+|-----------|-----------|
+| [docs/DATABASE.md](docs/DATABASE.md) | Schemas, tabelas, relacionamentos e diagramas |
+| [docs/FEATURES.md](docs/FEATURES.md) | Features completas com exemplos de uso |
+| [docs/API.md](docs/API.md) | Referencia completa de endpoints da API |
 
 Swagger: `http://localhost:3000/docs`
 
-## Estrutura
+## Estrutura do Projeto
 
 ```
 src/
@@ -82,15 +86,59 @@ src/
     ├── prisma/                      # PrismaService (tenantClient/bypassClient)
     ├── auth/                        # JWT auth + register
     ├── tenant/                      # TenantGuard + CRUD
-    ├── user/                        # Exemplo de módulo tenant-scoped
-    └── health/                      # Health check
+    ├── user/                        # Gestao de usuarios
+    ├── health/                      # Health check
+    ├── hr/                          # Recursos Humanos
+    │   ├── department/              #   Departamentos (hierarquico)
+    │   ├── position/                #   Cargos e niveis
+    │   ├── work-schedule/           #   Escalas de trabalho
+    │   ├── employee/                #   Funcionarios
+    │   ├── time-record/             #   Ponto eletronico
+    │   └── leave/                   #   Ferias e licencas
+    └── financial/                   # Gestao Financeira
+        ├── category/                #   Categorias (hierarquica)
+        ├── cost-center/             #   Centros de custo
+        ├── bank-account/            #   Contas bancarias
+        ├── accounts-payable/        #   Contas a pagar
+        ├── accounts-receivable/     #   Contas a receber
+        ├── transaction/             #   Transacoes
+        ├── bank-reconciliation/     #   Conciliacao bancaria
+        ├── cash-flow/               #   Fluxo de caixa
+        ├── dashboard/               #   Dashboard financeiro
+        └── dre/                     #   DRE
 ```
 
-## Adicionando novos módulos de ERP
+## Como os Modulos se Conectam
 
-Todo módulo que lida com dados de tenant deve:
+```
+┌─────────────────────────────────────────────┐
+│               CORE (core)                    │
+│  Tenant → User → RefreshToken / Invitation   │
+└─────────────────┬───────────────────────────┘
+                  │ tenant_id
+     ┌────────────┼────────────┐
+     │            │            │
+┌────▼────┐       │     ┌──────▼──────┐
+│   RH    │       │     │ FINANCEIRO  │
+│  (rh)   │       │     │(financeiro) │
+│         │       │     │             │
+│ Dept ←──┼── Employee  │ Category    │
+│ Position│       │     │ CostCenter  │
+│ Schedule│       │     │ BankAccount │
+│ TimeRec │       │     │ AP / AR     │
+│ Leave   │       │     │ Transaction │
+└─────────┘       │     │ Statement   │
+                  │     │ DRE         │
+                  │     └─────────────┘
+                  │
+     Todos isolados por tenant_id + RLS
+```
 
-1. Adicionar `tenantId` no model do Prisma
+## Adicionando Novos Modulos
+
+Todo modulo que lida com dados de tenant deve:
+
+1. Adicionar `tenantId` no model do Prisma com `@@schema("nome_schema")`
 2. Usar `this.prisma.tenantClient()` no service
 3. Aplicar `@UseGuards(TenantGuard)` no controller
 4. Adicionar RLS policy na tabela no `enable_rls.sql`
@@ -102,7 +150,7 @@ export class ProductService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
-    const db = this.prisma.tenantClient(); // ← isolamento automático
+    const db = this.prisma.tenantClient(); // ← isolamento automatico
     return db.product.findMany();
   }
 }
