@@ -70,6 +70,18 @@ export class PrismaService
   }
 
   /**
+   * Retorna o tenantId do contexto atual (CLS).
+   * Útil para serviços que precisam passar tenantId explicitamente em creates.
+   */
+  getTenantId(): string {
+    const tenantId = this.cls.get<string>('tenantId');
+    if (!tenantId) {
+      throw new Error('Tenant ID not found in context. Ensure TenantGuard is applied.');
+    }
+    return tenantId;
+  }
+
+  /**
    * Client que bypassa RLS — para operações admin/system.
    * Ex: lookup de tenant pelo slug, login inicial, etc.
    */
