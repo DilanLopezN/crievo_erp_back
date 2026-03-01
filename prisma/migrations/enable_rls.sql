@@ -51,3 +51,50 @@ CREATE POLICY tenant_isolation_policy ON invitations
 
 CREATE POLICY bypass_rls_policy ON invitations
   USING (current_setting('app.bypass_rls', TRUE)::text = 'on');
+
+-- ============================================================
+-- HR Module: Enable RLS
+-- ============================================================
+
+ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE positions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE work_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE time_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leaves ENABLE ROW LEVEL SECURITY;
+
+-- Departments
+CREATE POLICY tenant_isolation_policy ON departments
+  USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+CREATE POLICY bypass_rls_policy ON departments
+  USING (current_setting('app.bypass_rls', TRUE)::text = 'on');
+
+-- Positions
+CREATE POLICY tenant_isolation_policy ON positions
+  USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+CREATE POLICY bypass_rls_policy ON positions
+  USING (current_setting('app.bypass_rls', TRUE)::text = 'on');
+
+-- Work Schedules
+CREATE POLICY tenant_isolation_policy ON work_schedules
+  USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+CREATE POLICY bypass_rls_policy ON work_schedules
+  USING (current_setting('app.bypass_rls', TRUE)::text = 'on');
+
+-- Employees
+CREATE POLICY tenant_isolation_policy ON employees
+  USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+CREATE POLICY bypass_rls_policy ON employees
+  USING (current_setting('app.bypass_rls', TRUE)::text = 'on');
+
+-- Time Records
+CREATE POLICY tenant_isolation_policy ON time_records
+  USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+CREATE POLICY bypass_rls_policy ON time_records
+  USING (current_setting('app.bypass_rls', TRUE)::text = 'on');
+
+-- Leaves
+CREATE POLICY tenant_isolation_policy ON leaves
+  USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+CREATE POLICY bypass_rls_policy ON leaves
+  USING (current_setting('app.bypass_rls', TRUE)::text = 'on');
