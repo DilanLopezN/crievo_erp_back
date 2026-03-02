@@ -1,0 +1,512 @@
+// ============================================================
+// PRODUCAO SCHEMA: Producao & PCP
+// Produtos, BOM, cadeias produtivas, ordens de producao,
+// centros de trabalho, controle de qualidade, planejamento
+// de capacidade e rastreabilidade completa
+// ============================================================
+
+// ============================================================
+// PRODUTO: Cadastro de produtos fabricados e insumos
+// ============================================================
+
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  code        String
+  name        String
+  description String?
+  unit        String   @default("UN")
+  category    String?
+  type        ProductType @default(FINISHED)
+  minStock    Decimal  @default(0) @map("min_stock") @db.Decimal(14, 4)
+  maxStock    Decimal? @map("max_stock") @db.Decimal(14, 4)
+  currentStock Decimal @default(0) @map("current_stock") @db.Decimal(14, 4)
+  costPrice   Decimal  @default(0) @map("cost_price") @db.Decimal(14, 4)
+  leadTimeDays Int?    @map("lead_time_days")
+  weight      Decimal? @db.Decimal(14, 4)
+  dimensions  Json?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Produto como produto final do BOM
+  billsOfMaterials BillOfMaterials[]
+  // Produto como insumo em BOMs
+  bomItems         BillOfMaterialsItem[]
+  // Ordens de producao deste produto
+  productionOrders ProductionOrder[]
+  // Consumo de materiais
+  materialConsumptions MaterialConsumption[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([type])
+  @@map("products")
+  @@schema("producao")
+}
+
+// ============================================================
+// BOM: Lista de Materiais (Receita/Estrutura do Produto)
+// ============================================================
+
+model BillOfMaterials {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  version     String   @default("1.0")
+  name        String
+  description String?
+  isDefault   Boolean  @default(false) @map("is_default")
+  yieldQuantity Decimal @default(1) @map("yield_quantity") @db.Decimal(14, 4)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  items            BillOfMaterialsItem[]
+  productionOrders ProductionOrder[]
+
+  @@unique([tenantId, productId, version])
+  @@index([tenantId])
+  @@index([productId])
+  @@map("bills_of_materials")
+  @@schema("producao")
+}
+
+model BillOfMaterialsItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  bomId           String   @map("bom_id") @db.Uuid
+  materialProductId String @map("material_product_id") @db.Uuid
+  quantity        Decimal  @db.Decimal(14, 4)
+  unit            String   @default("UN")
+  wastePercentage Decimal  @default(0) @map("waste_percentage") @db.Decimal(5, 2)
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bom             BillOfMaterials  @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  materialProduct Product          @relation(fields: [materialProductId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([bomId])
+  @@map("bill_of_materials_items")
+  @@schema("producao")
+}
+
+// ============================================================
+// CADEIA PRODUTIVA: Definicao modular de processos
+// ============================================================
+
+model ProductionChain {
+  id                      String   @id @default(uuid()) @db.Uuid
+  tenantId                String   @map("tenant_id") @db.Uuid
+  name                    String
+  code                    String?
+  description             String?
+  estimatedDurationMinutes Int?    @map("estimated_duration_minutes")
+  isActive                Boolean  @default(true) @map("is_active")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  steps            ProductionChainStep[]
+  productionOrders ProductionOrder[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("production_chains")
+  @@schema("producao")
+}
+
+model ProductionChainStep {
+  id                      String   @id @default(uuid()) @db.Uuid
+  tenantId                String   @map("tenant_id") @db.Uuid
+  chainId                 String   @map("chain_id") @db.Uuid
+  name                    String
+  description             String?
+  stepOrder               Int      @map("step_order")
+  estimatedDurationMinutes Int?    @map("estimated_duration_minutes")
+  machineTypeRequired     String?  @map("machine_type_required")
+  workCenterId            String?  @map("work_center_id") @db.Uuid
+  instructions            Json?
+  isQualityCheckpoint     Boolean  @default(false) @map("is_quality_checkpoint")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chain      ProductionChain  @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  workCenter WorkCenter?      @relation(fields: [workCenterId], references: [id])
+
+  stepExecutions ProductionStepExecution[]
+
+  @@unique([chainId, stepOrder])
+  @@index([tenantId])
+  @@index([chainId])
+  @@map("production_chain_steps")
+  @@schema("producao")
+}
+
+// ============================================================
+// CENTRO DE TRABALHO: Maquinas, estacoes e recursos
+// ============================================================
+
+model WorkCenter {
+  id           String           @id @default(uuid()) @db.Uuid
+  tenantId     String           @map("tenant_id") @db.Uuid
+  name         String
+  code         String?
+  description  String?
+  type         WorkCenterType   @default(MACHINE)
+  capacity     Decimal          @default(1) @db.Decimal(14, 2)
+  capacityUnit String           @default("UN/H") @map("capacity_unit")
+  status       WorkCenterStatus @default(AVAILABLE)
+  costPerHour  Decimal          @default(0) @map("cost_per_hour") @db.Decimal(14, 2)
+  location     String?
+  isActive     Boolean          @default(true) @map("is_active")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  chainSteps     ProductionChainStep[]
+  stepExecutions ProductionStepExecution[]
+  capacityPlans  CapacityPlan[]
+  maintenanceLogs MaintenanceLog[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([status])
+  @@map("work_centers")
+  @@schema("producao")
+}
+
+// ============================================================
+// ORDEM DE PRODUCAO: Planejamento e execucao
+// ============================================================
+
+model ProductionOrder {
+  id                String                @id @default(uuid()) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  orderNumber       String                @map("order_number")
+  productId         String                @map("product_id") @db.Uuid
+  bomId             String?               @map("bom_id") @db.Uuid
+  chainId           String?               @map("chain_id") @db.Uuid
+  quantity          Decimal               @db.Decimal(14, 4)
+  completedQuantity Decimal               @default(0) @map("completed_quantity") @db.Decimal(14, 4)
+  rejectedQuantity  Decimal               @default(0) @map("rejected_quantity") @db.Decimal(14, 4)
+  priority          ProductionPriority    @default(NORMAL)
+  status            ProductionOrderStatus @default(DRAFT)
+  plannedStartDate  DateTime?             @map("planned_start_date") @db.Date
+  plannedEndDate    DateTime?             @map("planned_end_date") @db.Date
+  actualStartDate   DateTime?             @map("actual_start_date")
+  actualEndDate     DateTime?             @map("actual_end_date")
+  requestedBy       String?               @map("requested_by")
+  costEstimate      Decimal               @default(0) @map("cost_estimate") @db.Decimal(14, 2)
+  actualCost        Decimal               @default(0) @map("actual_cost") @db.Decimal(14, 2)
+  batchCode         String?               @map("batch_code")
+  notes             String?
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  tenant  Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product          @relation(fields: [productId], references: [id])
+  bom     BillOfMaterials? @relation(fields: [bomId], references: [id])
+  chain   ProductionChain? @relation(fields: [chainId], references: [id])
+
+  stepExecutions       ProductionStepExecution[]
+  qualityInspections   QualityInspection[]
+  materialConsumptions MaterialConsumption[]
+  defects              QualityDefect[]
+
+  @@unique([tenantId, orderNumber])
+  @@index([tenantId])
+  @@index([status])
+  @@index([priority])
+  @@index([plannedStartDate])
+  @@map("production_orders")
+  @@schema("producao")
+}
+
+// ============================================================
+// EXECUCAO DE ETAPAS: Registro de cada etapa executada
+// ============================================================
+
+model ProductionStepExecution {
+  id                String                @id @default(uuid()) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  productionOrderId String                @map("production_order_id") @db.Uuid
+  chainStepId       String                @map("chain_step_id") @db.Uuid
+  workCenterId      String?               @map("work_center_id") @db.Uuid
+  operatorName      String?               @map("operator_name")
+  status            ProductionStepStatus  @default(PENDING)
+  startedAt         DateTime?             @map("started_at")
+  completedAt       DateTime?             @map("completed_at")
+  quantityProduced  Decimal               @default(0) @map("quantity_produced") @db.Decimal(14, 4)
+  quantityRejected  Decimal               @default(0) @map("quantity_rejected") @db.Decimal(14, 4)
+  observations      String?
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  tenant          Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productionOrder ProductionOrder      @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  chainStep       ProductionChainStep  @relation(fields: [chainStepId], references: [id])
+  workCenter      WorkCenter?          @relation(fields: [workCenterId], references: [id])
+
+  qualityInspections QualityInspection[]
+
+  @@index([tenantId])
+  @@index([productionOrderId])
+  @@index([status])
+  @@map("production_step_executions")
+  @@schema("producao")
+}
+
+// ============================================================
+// CONTROLE DE QUALIDADE: Inspecoes e criterios
+// ============================================================
+
+model QualityInspection {
+  id                String                    @id @default(uuid()) @db.Uuid
+  tenantId          String                    @map("tenant_id") @db.Uuid
+  productionOrderId String                    @map("production_order_id") @db.Uuid
+  stepExecutionId   String?                   @map("step_execution_id") @db.Uuid
+  type              QualityInspectionType     @default(IN_PROCESS)
+  status            QualityInspectionStatus   @default(PENDING)
+  inspectorName     String?                   @map("inspector_name")
+  inspectionDate    DateTime                  @default(now()) @map("inspection_date")
+  sampleSize        Int?                      @map("sample_size")
+  approvedQuantity  Decimal                   @default(0) @map("approved_quantity") @db.Decimal(14, 4)
+  rejectedQuantity  Decimal                   @default(0) @map("rejected_quantity") @db.Decimal(14, 4)
+  criteria          Json?
+  results           Json?
+  notes             String?
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @updatedAt @map("updated_at")
+
+  tenant          Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productionOrder ProductionOrder           @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  stepExecution   ProductionStepExecution?  @relation(fields: [stepExecutionId], references: [id])
+
+  defects QualityDefect[]
+
+  @@index([tenantId])
+  @@index([productionOrderId])
+  @@index([status])
+  @@map("quality_inspections")
+  @@schema("producao")
+}
+
+model QualityDefect {
+  id                String          @id @default(uuid()) @db.Uuid
+  tenantId          String          @map("tenant_id") @db.Uuid
+  inspectionId      String?         @map("inspection_id") @db.Uuid
+  productionOrderId String          @map("production_order_id") @db.Uuid
+  description       String
+  severity          DefectSeverity  @default(MEDIUM)
+  quantity          Decimal         @default(1) @db.Decimal(14, 4)
+  cause             String?
+  correctiveAction  String?         @map("corrective_action")
+  resolvedAt        DateTime?       @map("resolved_at")
+  resolvedBy        String?         @map("resolved_by")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inspection      QualityInspection? @relation(fields: [inspectionId], references: [id])
+  productionOrder ProductionOrder    @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([productionOrderId])
+  @@index([severity])
+  @@map("quality_defects")
+  @@schema("producao")
+}
+
+// ============================================================
+// CONSUMO DE MATERIAIS: Rastreabilidade de insumos
+// ============================================================
+
+model MaterialConsumption {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  productionOrderId String   @map("production_order_id") @db.Uuid
+  materialProductId String   @map("material_product_id") @db.Uuid
+  plannedQuantity   Decimal  @map("planned_quantity") @db.Decimal(14, 4)
+  actualQuantity    Decimal  @default(0) @map("actual_quantity") @db.Decimal(14, 4)
+  unit              String   @default("UN")
+  wasteQuantity     Decimal  @default(0) @map("waste_quantity") @db.Decimal(14, 4)
+  consumedAt        DateTime? @map("consumed_at")
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productionOrder ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  materialProduct Product         @relation(fields: [materialProductId], references: [id])
+
+  @@index([tenantId])
+  @@index([productionOrderId])
+  @@map("material_consumptions")
+  @@schema("producao")
+}
+
+// ============================================================
+// PLANEJAMENTO DE CAPACIDADE
+// ============================================================
+
+model CapacityPlan {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  workCenterId      String   @map("work_center_id") @db.Uuid
+  date              DateTime @db.Date
+  availableMinutes  Int      @default(480) @map("available_minutes")
+  plannedMinutes    Int      @default(0) @map("planned_minutes")
+  actualMinutes     Int      @default(0) @map("actual_minutes")
+  utilizationPercent Decimal @default(0) @map("utilization_percent") @db.Decimal(5, 2)
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workCenter WorkCenter @relation(fields: [workCenterId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, workCenterId, date])
+  @@index([tenantId])
+  @@index([workCenterId])
+  @@index([date])
+  @@map("capacity_plans")
+  @@schema("producao")
+}
+
+// ============================================================
+// LOG DE MANUTENCAO: Historico de manutencao de centros
+// ============================================================
+
+model MaintenanceLog {
+  id           String          @id @default(uuid()) @db.Uuid
+  tenantId     String          @map("tenant_id") @db.Uuid
+  workCenterId String          @map("work_center_id") @db.Uuid
+  type         MaintenanceType @default(CORRECTIVE)
+  description  String
+  startDate    DateTime        @map("start_date")
+  endDate      DateTime?       @map("end_date")
+  cost         Decimal         @default(0) @db.Decimal(14, 2)
+  performedBy  String?         @map("performed_by")
+  notes        String?
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workCenter WorkCenter @relation(fields: [workCenterId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([workCenterId])
+  @@map("maintenance_logs")
+  @@schema("producao")
+}
+
+// ============================================================
+// PRODUCAO: Enums
+// ============================================================
+
+enum ProductType {
+  RAW_MATERIAL
+  SEMI_FINISHED
+  FINISHED
+  PACKAGING
+  CONSUMABLE
+
+  @@schema("producao")
+}
+
+enum ProductionOrderStatus {
+  DRAFT
+  PLANNED
+  RELEASED
+  IN_PROGRESS
+  PAUSED
+  COMPLETED
+  CANCELLED
+
+  @@schema("producao")
+}
+
+enum ProductionPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+
+  @@schema("producao")
+}
+
+enum ProductionStepStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+
+  @@schema("producao")
+}
+
+enum QualityInspectionType {
+  INCOMING
+  IN_PROCESS
+  FINAL
+  RANDOM
+
+  @@schema("producao")
+}
+
+enum QualityInspectionStatus {
+  PENDING
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  CONDITIONAL
+
+  @@schema("producao")
+}
+
+enum DefectSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+
+  @@schema("producao")
+}
+
+enum WorkCenterType {
+  MACHINE
+  WORKSTATION
+  ASSEMBLY_LINE
+  MANUAL
+  EXTERNAL
+
+  @@schema("producao")
+}
+
+enum WorkCenterStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  INACTIVE
+
+  @@schema("producao")
+}
+
+enum MaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+  PREDICTIVE
+
+  @@schema("producao")
+}
