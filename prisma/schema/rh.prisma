@@ -1,0 +1,245 @@
+// ============================================================
+// RH SCHEMA: Recursos Humanos
+// Gestão de departamentos, cargos, funcionários,
+// escalas de trabalho, ponto eletrônico e licenças
+// ============================================================
+
+model Department {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  description String?
+  parentId    String?  @map("parent_id") @db.Uuid
+  managerId   String?  @map("manager_id") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent    Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children  Department[] @relation("DepartmentHierarchy")
+  positions Position[]
+  employees Employee[]
+
+  @@index([tenantId])
+  @@map("departments")
+  @@schema("rh")
+}
+
+model Position {
+  id            String        @id @default(uuid()) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  departmentId  String?       @map("department_id") @db.Uuid
+  name          String
+  description   String?
+  level         PositionLevel @default(JUNIOR)
+  baseSalaryMin Decimal?      @map("base_salary_min") @db.Decimal(12, 2)
+  baseSalaryMax Decimal?      @map("base_salary_max") @db.Decimal(12, 2)
+  isActive      Boolean       @default(true) @map("is_active")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id])
+  employees  Employee[]
+
+  @@index([tenantId])
+  @@map("positions")
+  @@schema("rh")
+}
+
+model WorkSchedule {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  name          String
+  workDays      Json     @map("work_days")
+  entryTime     String   @map("entry_time")
+  exitTime      String   @map("exit_time")
+  lunchDuration Int      @default(60) @map("lunch_duration")
+  weeklyHours   Decimal  @default(44) @map("weekly_hours") @db.Decimal(5, 2)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employees Employee[]
+
+  @@index([tenantId])
+  @@map("work_schedules")
+  @@schema("rh")
+}
+
+model Employee {
+  id              String         @id @default(uuid()) @db.Uuid
+  tenantId        String         @map("tenant_id") @db.Uuid
+  userId          String?        @map("user_id") @db.Uuid
+  positionId      String?        @map("position_id") @db.Uuid
+  departmentId    String?        @map("department_id") @db.Uuid
+  workScheduleId  String?        @map("work_schedule_id") @db.Uuid
+  employeeCode    String         @map("employee_code")
+  firstName       String         @map("first_name")
+  lastName        String         @map("last_name")
+  email           String
+  phone           String?
+  cpf             String?
+  rg              String?
+  birthDate       DateTime?      @map("birth_date") @db.Date
+  hireDate        DateTime       @map("hire_date") @db.Date
+  terminationDate DateTime?      @map("termination_date") @db.Date
+  contractType    ContractType   @default(CLT) @map("contract_type")
+  salary          Decimal?       @db.Decimal(12, 2)
+  status          EmployeeStatus @default(ACTIVE)
+  photo           String?
+  address         Json?
+  emergencyContact Json?         @map("emergency_contact")
+  bankInfo        Json?          @map("bank_info")
+  notes           String?
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  position     Position?     @relation(fields: [positionId], references: [id])
+  department   Department?   @relation(fields: [departmentId], references: [id])
+  workSchedule WorkSchedule? @relation(fields: [workScheduleId], references: [id])
+  timeRecords  TimeRecord[]
+  leaves       Leave[]
+
+  @@unique([tenantId, employeeCode])
+  @@unique([tenantId, cpf])
+  @@index([tenantId])
+  @@map("employees")
+  @@schema("rh")
+}
+
+model TimeRecord {
+  id             String           @id @default(uuid()) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  employeeId     String           @map("employee_id") @db.Uuid
+  date           DateTime         @db.Date
+  entryTime      DateTime?        @map("entry_time")
+  lunchStartTime DateTime?        @map("lunch_start_time")
+  lunchEndTime   DateTime?        @map("lunch_end_time")
+  exitTime       DateTime?        @map("exit_time")
+  workedMinutes  Int?             @map("worked_minutes")
+  extraMinutes   Int?             @map("extra_minutes")
+  missingMinutes Int?             @map("missing_minutes")
+  type           TimeRecordType   @default(NORMAL)
+  status         TimeRecordStatus @default(PENDING)
+  location       Json?
+  notes          String?
+  adjustedById   String?          @map("adjusted_by_id") @db.Uuid
+  adjustedAt     DateTime?        @map("adjusted_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, employeeId, date])
+  @@index([tenantId])
+  @@index([employeeId])
+  @@map("time_records")
+  @@schema("rh")
+}
+
+model Leave {
+  id           String      @id @default(uuid()) @db.Uuid
+  tenantId     String      @map("tenant_id") @db.Uuid
+  employeeId   String      @map("employee_id") @db.Uuid
+  type         LeaveType
+  startDate    DateTime    @map("start_date") @db.Date
+  endDate      DateTime    @map("end_date") @db.Date
+  days         Int
+  status       LeaveStatus @default(PENDING)
+  reason       String?
+  approvedById String?     @map("approved_by_id") @db.Uuid
+  approvedAt   DateTime?   @map("approved_at")
+  rejectedNote String?     @map("rejected_note")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([employeeId])
+  @@map("leaves")
+  @@schema("rh")
+}
+
+// ============================================================
+// RH SCHEMA: Enums
+// ============================================================
+
+enum PositionLevel {
+  INTERN
+  JUNIOR
+  PLENO
+  SENIOR
+  SPECIALIST
+  COORDINATOR
+  MANAGER
+  DIRECTOR
+  C_LEVEL
+
+  @@schema("rh")
+}
+
+enum ContractType {
+  CLT
+  PJ
+  INTERN
+  TEMPORARY
+  FREELANCER
+
+  @@schema("rh")
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+  TERMINATED
+
+  @@schema("rh")
+}
+
+enum TimeRecordType {
+  NORMAL
+  OVERTIME
+  REMOTE
+  HOLIDAY
+  COMPENSATORY
+
+  @@schema("rh")
+}
+
+enum TimeRecordStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ADJUSTED
+
+  @@schema("rh")
+}
+
+enum LeaveType {
+  VACATION
+  SICK
+  MATERNITY
+  PATERNITY
+  PERSONAL
+  BEREAVEMENT
+  OTHER
+
+  @@schema("rh")
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@schema("rh")
+}
