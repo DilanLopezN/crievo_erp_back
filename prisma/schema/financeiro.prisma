@@ -1,0 +1,287 @@
+// ============================================================
+// FINANCEIRO SCHEMA: Gestão Financeira
+// Categorias, centros de custo, contas bancárias,
+// contas a pagar/receber, transações e conciliação
+// ============================================================
+
+model FinancialCategory {
+  id          String                @id @default(uuid()) @db.Uuid
+  tenantId    String                @map("tenant_id") @db.Uuid
+  name        String
+  code        String?
+  type        FinancialCategoryType
+  dreGroup    DreGroup?             @map("dre_group")
+  parentId    String?               @map("parent_id") @db.Uuid
+  description String?
+  isActive    Boolean               @default(true) @map("is_active")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  tenant   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent   FinancialCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children FinancialCategory[] @relation("CategoryHierarchy")
+
+  accountsPayable    AccountPayable[]
+  accountsReceivable AccountReceivable[]
+  transactions       FinancialTransaction[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("financial_categories")
+  @@schema("financeiro")
+}
+
+model CostCenter {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  code        String?
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  accountsPayable    AccountPayable[]
+  accountsReceivable AccountReceivable[]
+  transactions       FinancialTransaction[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("cost_centers")
+  @@schema("financeiro")
+}
+
+model BankAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  name           String
+  bank           String?
+  agency         String?
+  accountNumber  String?  @map("account_number")
+  accountType    String?  @map("account_type")
+  pixKey         String?  @map("pix_key")
+  initialBalance Decimal  @default(0) @map("initial_balance") @db.Decimal(14, 2)
+  currentBalance Decimal  @default(0) @map("current_balance") @db.Decimal(14, 2)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  transactions   FinancialTransaction[]
+  bankStatements BankStatement[]
+  paymentsOut    AccountPayable[]
+  paymentsIn     AccountReceivable[]
+
+  @@index([tenantId])
+  @@map("bank_accounts")
+  @@schema("financeiro")
+}
+
+model AccountPayable {
+  id                 String         @id @default(uuid()) @db.Uuid
+  tenantId           String         @map("tenant_id") @db.Uuid
+  description        String
+  supplierName       String?        @map("supplier_name")
+  supplierDocument   String?        @map("supplier_document")
+  categoryId         String?        @map("category_id") @db.Uuid
+  costCenterId       String?        @map("cost_center_id") @db.Uuid
+  bankAccountId      String?        @map("bank_account_id") @db.Uuid
+  amount             Decimal        @db.Decimal(14, 2)
+  paidAmount         Decimal        @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  dueDate            DateTime       @map("due_date") @db.Date
+  paymentDate        DateTime?      @map("payment_date") @db.Date
+  status             PaymentStatus  @default(PENDING)
+  paymentMethod      PaymentMethod? @map("payment_method")
+  documentNumber     String?        @map("document_number")
+  barcode            String?
+  installmentNumber  Int?           @map("installment_number")
+  installmentTotal   Int?           @map("installment_total")
+  installmentGroupId String?        @map("installment_group_id") @db.Uuid
+  recurrenceId       String?        @map("recurrence_id") @db.Uuid
+  notes              String?
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category    FinancialCategory? @relation(fields: [categoryId], references: [id])
+  costCenter  CostCenter?        @relation(fields: [costCenterId], references: [id])
+  bankAccount BankAccount?       @relation(fields: [bankAccountId], references: [id])
+
+  transactions FinancialTransaction[]
+
+  @@index([tenantId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("accounts_payable")
+  @@schema("financeiro")
+}
+
+model AccountReceivable {
+  id                 String         @id @default(uuid()) @db.Uuid
+  tenantId           String         @map("tenant_id") @db.Uuid
+  description        String
+  customerName       String?        @map("customer_name")
+  customerDocument   String?        @map("customer_document")
+  categoryId         String?        @map("category_id") @db.Uuid
+  costCenterId       String?        @map("cost_center_id") @db.Uuid
+  bankAccountId      String?        @map("bank_account_id") @db.Uuid
+  amount             Decimal        @db.Decimal(14, 2)
+  receivedAmount     Decimal        @default(0) @map("received_amount") @db.Decimal(14, 2)
+  dueDate            DateTime       @map("due_date") @db.Date
+  receivedDate       DateTime?      @map("received_date") @db.Date
+  status             PaymentStatus  @default(PENDING)
+  paymentMethod      PaymentMethod? @map("payment_method")
+  documentNumber     String?        @map("document_number")
+  installmentNumber  Int?           @map("installment_number")
+  installmentTotal   Int?           @map("installment_total")
+  installmentGroupId String?        @map("installment_group_id") @db.Uuid
+  recurrenceId       String?        @map("recurrence_id") @db.Uuid
+  notes              String?
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category    FinancialCategory? @relation(fields: [categoryId], references: [id])
+  costCenter  CostCenter?        @relation(fields: [costCenterId], references: [id])
+  bankAccount BankAccount?       @relation(fields: [bankAccountId], references: [id])
+
+  transactions FinancialTransaction[]
+
+  @@index([tenantId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("accounts_receivable")
+  @@schema("financeiro")
+}
+
+model FinancialTransaction {
+  id                      String          @id @default(uuid()) @db.Uuid
+  tenantId                String          @map("tenant_id") @db.Uuid
+  type                    TransactionType
+  description             String
+  amount                  Decimal         @db.Decimal(14, 2)
+  date                    DateTime        @db.Date
+  bankAccountId           String?         @map("bank_account_id") @db.Uuid
+  categoryId              String?         @map("category_id") @db.Uuid
+  costCenterId            String?         @map("cost_center_id") @db.Uuid
+  accountPayableId        String?         @map("account_payable_id") @db.Uuid
+  accountReceivableId     String?         @map("account_receivable_id") @db.Uuid
+  paymentMethod           PaymentMethod?  @map("payment_method")
+  reconciled              Boolean         @default(false)
+  bankStatementId         String?         @map("bank_statement_id") @db.Uuid
+  transferToBankAccountId String?         @map("transfer_to_bank_account_id") @db.Uuid
+  notes                   String?
+  createdAt               DateTime        @default(now()) @map("created_at")
+  updatedAt               DateTime        @updatedAt @map("updated_at")
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bankAccount       BankAccount?       @relation(fields: [bankAccountId], references: [id])
+  category          FinancialCategory? @relation(fields: [categoryId], references: [id])
+  costCenter        CostCenter?        @relation(fields: [costCenterId], references: [id])
+  accountPayable    AccountPayable?    @relation(fields: [accountPayableId], references: [id])
+  accountReceivable AccountReceivable? @relation(fields: [accountReceivableId], references: [id])
+  bankStatement     BankStatement?     @relation(fields: [bankStatementId], references: [id])
+
+  @@index([tenantId])
+  @@index([date])
+  @@index([bankAccountId])
+  @@index([reconciled])
+  @@map("financial_transactions")
+  @@schema("financeiro")
+}
+
+model BankStatement {
+  id            String          @id @default(uuid()) @db.Uuid
+  tenantId      String          @map("tenant_id") @db.Uuid
+  bankAccountId String          @map("bank_account_id") @db.Uuid
+  date          DateTime        @db.Date
+  description   String
+  amount        Decimal         @db.Decimal(14, 2)
+  type          TransactionType
+  balance       Decimal?        @db.Decimal(14, 2)
+  reconciled    Boolean         @default(false)
+  importBatch   String?         @map("import_batch")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  transactions FinancialTransaction[]
+
+  @@index([tenantId])
+  @@index([bankAccountId])
+  @@index([date])
+  @@index([reconciled])
+  @@map("bank_statements")
+  @@schema("financeiro")
+}
+
+// ============================================================
+// FINANCEIRO: Enums
+// ============================================================
+
+enum FinancialCategoryType {
+  INCOME
+  EXPENSE
+
+  @@schema("financeiro")
+}
+
+enum DreGroup {
+  GROSS_REVENUE
+  DEDUCTIONS
+  COST_OF_GOODS
+  OPERATING_EXPENSES
+  ADMINISTRATIVE_EXPENSES
+  PERSONNEL_EXPENSES
+  FINANCIAL_INCOME
+  FINANCIAL_EXPENSES
+  OTHER_INCOME
+  OTHER_EXPENSES
+  TAXES
+
+  @@schema("financeiro")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+
+  @@schema("financeiro")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+
+  @@schema("financeiro")
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  PIX
+  CREDIT_CARD
+  DEBIT_CARD
+  BOLETO
+  CHECK
+  OTHER
+
+  @@schema("financeiro")
+}
+
+enum ReconciliationStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+
+  @@schema("financeiro")
+}
