@@ -36,6 +36,21 @@ model Tenant {
   financialTransactions FinancialTransaction[]
   bankStatements        BankStatement[]
 
+  // Relações Produção & PCP
+  products               Product[]
+  billsOfMaterials       BillOfMaterials[]
+  billOfMaterialsItems   BillOfMaterialsItem[]
+  productionChains       ProductionChain[]
+  productionChainSteps   ProductionChainStep[]
+  workCenters            WorkCenter[]
+  productionOrders       ProductionOrder[]
+  productionStepExecutions ProductionStepExecution[]
+  qualityInspections     QualityInspection[]
+  qualityDefects         QualityDefect[]
+  materialConsumptions   MaterialConsumption[]
+  capacityPlans          CapacityPlan[]
+  maintenanceLogs        MaintenanceLog[]
+
   @@map("tenants")
   @@schema("core")
 }

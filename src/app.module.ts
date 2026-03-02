@@ -12,6 +12,7 @@ import { UserModule } from '@/modules/user';
 import { HealthModule } from '@/modules/health/health.module';
 import { HrModule } from '@/modules/hr/hr.module';
 import { FinancialModule } from '@/modules/financial/financial.module';
+import { ProductionModule } from '@/modules/production/production.module';
 
 @Module({
   imports: [
@@ -55,6 +56,9 @@ import { FinancialModule } from '@/modules/financial/financial.module';
 
     // Financial Module
     FinancialModule,
+
+    // Production & PCP Module
+    ProductionModule,
   ],
   providers: [
     // AuthGuard global - todas as rotas protegidas por padrão
